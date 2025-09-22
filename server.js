@@ -4,8 +4,8 @@ import { Server } from "socket.io";
 import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
-
 dotenv.config();
+
 const app = express();
 const server = createServer(app);
 const io = new Server(server, {
@@ -14,6 +14,10 @@ const io = new Server(server, {
 
 app.use(cors());
 app.use(express.json());
+
+app.get("/", (req, res) => {
+  res.send("✅ Chat backend is running");
+});
 
 // Connect MongoDB
 mongoose.connect(process.env.MONGO_URI)
@@ -70,5 +74,6 @@ const socket = io(BACKEND_URL);
 
 // And in handleContactSelect
 axios.get(`${BACKEND_URL}/messages/${currentUser}/${contactId}`);
+
 
 

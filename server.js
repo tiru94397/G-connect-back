@@ -64,5 +64,11 @@ io.on("connection", (socket) => {
   });
 });
 
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+const BACKEND_URL = "https://my-chat-backend.onrender.com";
+
+const socket = io(BACKEND_URL);
+
+// And in handleContactSelect
+axios.get(`${BACKEND_URL}/messages/${currentUser}/${contactId}`);
+
+

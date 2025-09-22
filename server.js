@@ -4,62 +4,80 @@ import { Server } from "socket.io";
 import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
+import axios from "axios";
+
 dotenv.config();
 
 const app = express();
 const server = createServer(app);
+
+// Allow CORS for frontend
 const io = new Server(server, {
-  cors: { origin: "*" }
+  cors: {
+    origin: "*", // Replace * with your frontend URL in production
+    methods: ["GET", "POST"]
+  }
 });
 
 app.use(cors());
 app.use(express.json());
 
-app.get("/", (req, res) => {
-  res.send("✅ Chat backend is running");
-});
-
-// Connect MongoDB
+// MongoDB connection
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB Connected"))
-  .catch(err => console.error(err));
+  .catch(err => console.error("❌ MongoDB connection error:", err));
 
-// Schema
+// MongoDB Schema & Model
 const MessageSchema = new mongoose.Schema({
   sender: String,
   receiver: String,
   text: String,
   timestamp: { type: Date, default: Date.now }
 });
+
 const Message = mongoose.model("Message", MessageSchema);
 
-// REST endpoint to fetch history
-app.get("/messages/:user1/:user2", async (req, res) => {
-  const { user1, user2 } = req.params;
-  const messages = await Message.find({
-    $or: [
-      { sender: user1, receiver: user2 },
-      { sender: user2, receiver: user1 }
-    ]
-  }).sort({ timestamp: 1 });
-  res.json(messages);
+// Root route
+app.get("/", (req, res) => {
+  res.send("✅ Chat backend is running");
 });
 
-// Real-time events
+// Fetch chat history
+app.get("/messages/:user1/:user2", async (req, res) => {
+  try {
+    const { user1, user2 } = req.params;
+    const messages = await Message.find({
+      $or: [
+        { sender: user1, receiver: user2 },
+        { sender: user2, receiver: user1 }
+      ]
+    }).sort({ timestamp: 1 });
+    res.json(messages);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// Real-time chat with Socket.IO
 io.on("connection", (socket) => {
   console.log("🟢 User connected:", socket.id);
 
-  // When a new user joins
+  // Join user
   socket.on("join", (username) => {
     socket.username = username;
-    console.log(`👤 ${username} joined the chat`);
+    console.log(`👤 ${username} joined`);
   });
 
-  // Handle sending message
+  // Send message
   socket.on("sendMessage", async (msg) => {
-    const newMsg = new Message(msg);
-    await newMsg.save();
-    io.emit("receiveMessage", msg); // broadcast
+    try {
+      const newMsg = new Message(msg);
+      await newMsg.save();
+      io.emit("receiveMessage", msg); // broadcast to all clients
+    } catch (err) {
+      console.error("Error saving message:", err);
+    }
   });
 
   // Disconnect
@@ -68,12 +86,6 @@ io.on("connection", (socket) => {
   });
 });
 
-const BACKEND_URL = "https://my-chat-backend.onrender.com";
-
-const socket = io(BACKEND_URL);
-
-// And in handleContactSelect
-axios.get(`${BACKEND_URL}/messages/${currentUser}/${contactId}`);
-
-
-
+// Start server
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
